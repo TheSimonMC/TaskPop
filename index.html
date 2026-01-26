@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pop-It Task Board</title>
+    <title>TaskPop</title>
+    <link rel="icon" type="image/png" href="favicon48c.png">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
@@ -131,9 +132,17 @@
 
             <div class="form-group">
                 <label id="lbl-data">Data</label>
-                <button class="btn-primary" id="backup-btn" style="width:100%; justify-content:center;">
-                    <span class="material-icons-round">download</span> <span id="lbl-backup">Backup Data</span>
+                            
+                <button class="btn-primary" id="backup-btn" style="width:100%; justify-content:center; margin-bottom:10px;">
+                  <span class="material-icons-round">download</span> <span id="lbl-backup">Backup Data</span>
                 </button>
+            
+                <button class="btn-primary" id="import-btn" style="width:100%; justify-content:center;">
+                  <span class="material-icons-round">upload</span> <span id="lbl-import">Import Backup</span>
+                </button>
+            
+                <!-- hidden file picker -->
+                <input type="file" id="import-file" accept="application/json,.json" style="display:none;" />
             </div>
 
             <div class="modal-actions" style="justify-content: center;">
@@ -228,6 +237,34 @@
             </div>
         </div>
     </div>
+
+    <div class="modal-overlay hidden" id="import-choice-modal">
+      <div class="modal card-style mini-modal">
+        <h2 id="lbl-import-title">Import Backup</h2>
+        <p id="lbl-import-desc" style="margin:10px 0; color:var(--text-light); line-height:1.3;">
+          What do you want to do with the imported backup?
+        </p>
+    
+        <div id="import-summary" style="font-size:0.85rem; margin:10px 0; color:var(--text-main); opacity:0.9;"></div>
+    
+        <div class="modal-actions" style="flex-direction: column; gap: 10px;">
+          <button class="btn-primary" id="import-separate-btn" style="width:100%; justify-content:center;">
+            <span class="material-icons-round">library_add</span>
+            <span id="lbl-import-separate">Import separately</span>
+          </button>
+      
+          <button class="btn-primary" id="import-merge-btn" style="width:100%; justify-content:center;">
+            <span class="material-icons-round">merge</span>
+            <span id="lbl-import-merge">Merge into current project</span>
+          </button>
+      
+          <button class="btn-text" id="import-cancel-btn">
+            <span id="lbl-import-cancel">Cancel</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
 
     <div id="toast-container"></div>
 

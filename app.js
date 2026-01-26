@@ -54,7 +54,22 @@ const translations = {
         msgMovedDone: "Moved to Done!",
         msgDeleted: "Task deleted",
         modeFocused: "Focused",
-        modeInfinite: "Infinite"
+        modeInfinite: "Infinite",
+        lblImport: "Import Backup",
+        msgImportOk: "Import successful!",
+        msgImportFail: "Import failed: invalid file",
+        msgImportCanceled: "Import canceled",
+        confirmImportReplace: "Replace current data with imported backup?",
+        importTitle: "Import Backup",
+        importDesc: "What do you want to do with the imported backup?",
+        importSeparate: "Import separately",
+        importMerge: "Merge into current project",
+        importCancel: "Cancel",
+        msgImportLoaded: "Backup loaded. Choose an import mode.",
+        msgImportMerged: "Merged into current project!",
+        msgImportAddedProjects: "Imported as new projects!"
+
+
     },
     de: {
         newTask: "Neue Aufgabe",
@@ -103,7 +118,22 @@ const translations = {
         msgMovedDone: "In Erledigt verschoben!",
         msgDeleted: "Aufgabe gelöscht",
         modeFocused: "Fokussiert",
-        modeInfinite: "Unendlich"
+        modeInfinite: "Unendlich",
+        lblImport: "Backup importieren",
+        msgImportOk: "Import erfolgreich!",
+        msgImportFail: "Import fehlgeschlagen: Datei ungültig",
+        msgImportCanceled: "Import abgebrochen",
+        confirmImportReplace: "Aktuelle Daten durch das Backup ersetzen?",
+        importTitle: "Backup importieren",
+        importDesc: "Was möchtest du mit dem importierten Backup machen?",
+        importSeparate: "Separat importieren",
+        importMerge: "Mit aktuellem Projekt mergen",
+        importCancel: "Abbrechen",
+        msgImportLoaded: "Backup geladen. Wähle einen Import-Modus.",
+        msgImportMerged: "In aktuelles Projekt gemerged!",
+        msgImportAddedProjects: "Als neue Projekte importiert!"
+
+
     }
 };
 
@@ -163,6 +193,64 @@ function saveState() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
 }
 
+function isValidState(obj) {
+    if (!obj || typeof obj !== 'object') return false;
+    if (!Array.isArray(obj.projects)) return false;
+    if (!obj.settings || typeof obj.settings !== 'object') return false;
+    // Minimal required settings keys (tolerant)
+    if (!('lang' in obj.settings)) obj.settings.lang = 'en';
+    if (!('theme' in obj.settings)) obj.settings.theme = 'light';
+    if (!('view' in obj.settings)) obj.settings.view = 'board';
+    if (!('sortBy' in obj.settings)) obj.settings.sortBy = 'created';
+    if (!('showDone' in obj.settings)) obj.settings.showDone = true;
+    if (!('canvasMode' in obj.settings)) obj.settings.canvasMode = 'focused';
+
+    // Ensure each project has id/name/tasks
+    for (const p of obj.projects) {
+        if (!p || typeof p !== 'object') return false;
+        if (!p.id || !p.name || !Array.isArray(p.tasks)) return false;
+        // tasks should be objects; be tolerant
+        p.tasks = p.tasks.filter(t => t && typeof t === 'object' && t.id && t.title);
+        // normalize missing fields
+        for (const tsk of p.tasks) {
+            if (!tsk.tags) tsk.tags = [];
+            if (!tsk.priority) tsk.priority = 'low';
+            if (!tsk.status) tsk.status = 'todo';
+            if (typeof tsk.x !== 'number') tsk.x = 100;
+            if (typeof tsk.y !== 'number') tsk.y = 100;
+            if (!tsk.createdAt) tsk.createdAt = Date.now();
+            if (!tsk.updatedAt) tsk.updatedAt = Date.now();
+        }
+    }
+
+    // activeProjectId fallback
+    if (!obj.activeProjectId || !obj.projects.some(p => p.id === obj.activeProjectId)) {
+        obj.activeProjectId = obj.projects[0]?.id || 'proj_1';
+    }
+    return true;
+}
+
+function importStateFromJson(jsonText) {
+    let parsed;
+    try {
+        parsed = JSON.parse(jsonText);
+    } catch {
+        return { ok: false, error: 'parse' };
+    }
+
+    if (!isValidState(parsed)) {
+        return { ok: false, error: 'invalid' };
+    }
+
+    // Replace current state (simplest and safest)
+    appState = parsed;
+    saveState();
+    applySettings();
+    renderApp();
+    return { ok: true };
+}
+
+
 function pushUndo() {
     undoStack.push(JSON.parse(JSON.stringify(appState)));
     if (undoStack.length > 5) undoStack.shift();
@@ -219,6 +307,8 @@ function applySettings() {
     document.getElementById('mode-infinite').innerText = t('modeInfinite');
     document.getElementById('lbl-data').innerText = t('lblData');
     document.getElementById('lbl-backup').innerText = t('lblBackup');
+    const importLbl = document.getElementById('lbl-import');
+    if (importLbl) importLbl.innerText = t('lblImport');
     document.getElementById('close-settings').innerText = t('btnClose');
 
     // Forms
@@ -241,6 +331,19 @@ function applySettings() {
     document.getElementById('cancel-project').innerText = t('btnCancel');
     document.getElementById('save-project').innerText = t('newProject');
     document.getElementById('confirm-msg').innerText = t('confirmMsg');
+
+    // Import modal texts
+    const it = document.getElementById('lbl-import-title');
+    if (it) it.innerText = t('importTitle');
+    const idesc = document.getElementById('lbl-import-desc');
+    if (idesc) idesc.innerText = t('importDesc');
+    const isep = document.getElementById('lbl-import-separate');
+    if (isep) isep.innerText = t('importSeparate');
+    const imerge = document.getElementById('lbl-import-merge');
+    if (imerge) imerge.innerText = t('importMerge');
+    const icancel = document.getElementById('lbl-import-cancel');
+    if (icancel) icancel.innerText = t('importCancel');
+
 }
 
 // --- DATA HELPERS ---
@@ -704,6 +807,102 @@ function confirmDeleteProject(projId) {
     };
 }
 
+let pendingImportState = null;
+
+function getImportSummary(state) {
+    const projCount = state.projects.length;
+    const taskCount = state.projects.reduce((acc, p) => acc + (p.tasks?.length || 0), 0);
+    return { projCount, taskCount };
+}
+
+function openImportChoiceModal(state) {
+    pendingImportState = state;
+
+    const summaryEl = document.getElementById('import-summary');
+    if (summaryEl) {
+        const s = getImportSummary(state);
+        summaryEl.innerText = `${s.projCount} projects • ${s.taskCount} tasks`;
+    }
+
+    document.getElementById('import-choice-modal').classList.remove('hidden');
+    showToast(t('msgImportLoaded'));
+}
+
+function closeImportChoiceModal() {
+    const m = document.getElementById('import-choice-modal');
+    if (m) m.classList.add('hidden');
+    pendingImportState = null;
+}
+
+function makeUniqueProjectName(baseName) {
+    const existing = new Set(appState.projects.map(p => p.name));
+    if (!existing.has(baseName)) return baseName;
+
+    let i = 2;
+    while (existing.has(`${baseName} (${i})`)) i++;
+    return `${baseName} (${i})`;
+}
+
+function remapTaskIds(tasks, prefix) {
+    return tasks.map(t => ({
+        ...t,
+        id: `${prefix}_${t.id || ('task_' + Date.now())}`,
+        createdAt: t.createdAt || Date.now(),
+        updatedAt: t.updatedAt || Date.now(),
+        x: typeof t.x === 'number' ? t.x : 100,
+        y: typeof t.y === 'number' ? t.y : 100,
+        tags: Array.isArray(t.tags) ? t.tags : []
+    }));
+}
+
+// Mode 1: Import separately = add projects from backup as NEW projects (no overwrite)
+function importSeparately(state) {
+    pushUndo();
+
+    state.projects.forEach((p, idx) => {
+        const newPid = `imp_proj_${Date.now()}_${idx}`;
+        const newName = makeUniqueProjectName(p.name || 'Imported');
+
+        const newProject = {
+            id: newPid,
+            name: newName,
+            tasks: remapTaskIds(p.tasks || [], `imp_task_${newPid}`)
+        };
+        appState.projects.push(newProject);
+    });
+
+    // Keep current settings & active project
+    saveState();
+    renderApp();
+    showToast(t('msgImportAddedProjects'));
+}
+
+// Mode 2: Merge into current project = pull ALL tasks from backup into active project
+function mergeIntoCurrentProject(state) {
+    pushUndo();
+
+    const target = getActiveProject();
+    const allImportedTasks = state.projects.flatMap((p, idx) => {
+        const prefix = `merge_${Date.now()}_${idx}`;
+        return remapTaskIds(p.tasks || [], prefix);
+    });
+
+    // Optional: place merged tasks a bit offset so they don’t overlap hard
+    const offsetX = 60, offsetY = 40;
+    let n = 0;
+    for (const tsk of allImportedTasks) {
+        tsk.x = (typeof tsk.x === 'number' ? tsk.x : 100) + offsetX + (n % 5) * 15;
+        tsk.y = (typeof tsk.y === 'number' ? tsk.y : 100) + offsetY + (n % 5) * 15;
+        n++;
+        target.tasks.push(tsk);
+    }
+
+    saveState();
+    renderApp();
+    showToast(t('msgImportMerged'));
+}
+
+
 // --- EVENT LISTENERS ---
 function setupEventListeners() {
     // New Task
@@ -793,6 +992,38 @@ function setupEventListeners() {
         showToast('Backup downloaded!');
     };
 
+    // Import
+    const importBtn = document.getElementById('import-btn');
+    const importFile = document.getElementById('import-file');
+
+    if (importBtn && importFile) {
+        importBtn.onclick = () => {
+            importFile.value = "";
+            importFile.click();
+        };
+
+        importFile.addEventListener('change', async () => {
+            const file = importFile.files && importFile.files[0];
+            if (!file) return;
+
+            try {
+                const text = await file.text();
+                let parsed = JSON.parse(text);
+
+                if (!isValidState(parsed)) {
+                    showToast(t('msgImportFail'));
+                    return;
+                }
+
+                // Instead of replacing immediately -> open pretty modal
+                openImportChoiceModal(parsed);
+            } catch {
+                showToast(t('msgImportFail'));
+            }
+        });
+    }
+
+
     document.getElementById('add-project-btn').onclick = () => {
         els.projectModal.classList.remove('hidden');
         document.getElementById('new-project-name').focus();
@@ -840,6 +1071,30 @@ function setupEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeModals();
     });
+
+    // Import choice modal buttons
+    const importCancelBtn = document.getElementById('import-cancel-btn');
+    const importSeparateBtn = document.getElementById('import-separate-btn');
+    const importMergeBtn = document.getElementById('import-merge-btn');
+    
+    if (importCancelBtn) importCancelBtn.onclick = () => closeImportChoiceModal();
+    
+    if (importSeparateBtn) importSeparateBtn.onclick = () => {
+        if (!pendingImportState) return;
+        const st = pendingImportState;
+        closeImportChoiceModal();
+        closeModals(); // closes settings too (optional)
+        importSeparately(st);
+    };
+    
+    if (importMergeBtn) importMergeBtn.onclick = () => {
+        if (!pendingImportState) return;
+        const st = pendingImportState;
+        closeImportChoiceModal();
+        closeModals(); // closes settings too (optional)
+        mergeIntoCurrentProject(st);
+    };
+
 }
 
 function closeModals() {
