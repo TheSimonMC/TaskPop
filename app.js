@@ -982,15 +982,29 @@ function setupEventListeners() {
     };
 
     document.getElementById('backup-btn').onclick = () => {
-        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(appState));
+        // date in YYYY-MM-DD
+        const now = new Date();
+        const dateStr = now.toISOString().slice(0, 10);
+    
+        const fileName = `TaskPop - Workplace ${dateStr}.json`;
+    
+        const json = JSON.stringify(appState, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+    
         const a = document.createElement('a');
-        a.href = dataStr;
-        a.download = "taskpop_backup.json";
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+    
         document.body.appendChild(a);
         a.click();
         a.remove();
-        showToast('Backup downloaded!');
+    
+        URL.revokeObjectURL(a.href);
+    
+        showToast(`Backup downloaded: ${fileName}`);
     };
+
+
 
     // Import
     const importBtn = document.getElementById('import-btn');
