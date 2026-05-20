@@ -41,26 +41,9 @@
   import projects separately
   or merge tasks into the current project
 
-⚠️ License & Usage Rules (IMPORTANT)
+⚠️ License
 
-  TaskPop is Open Source, but with strict usage limitations:
-
-✅ Allowed
-
-  Personal use
-  Learning & studying the code
-  Modifying the app for yourself
-  Contributing via pull requests
-
-❌ NOT allowed
-
-  ❌ Selling this project or parts of it
-  ❌ Re-publishing it as your own project
-  ❌ Uploading it elsewhere under a different name
-  ❌ Using it commercially
-  ❌ Claiming authorship
-
-This project is NOT a template or boilerplate.
+  see @ LICENSE
 
 👤 Author
 
